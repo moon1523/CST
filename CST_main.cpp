@@ -5,7 +5,6 @@
 #include "OCR_Func.h"
 
 void PrintUsage() {
-<<<<<<< HEAD
 	cout << "=================================================" << endl;
 	cout << "C-arm Source Tracker (CST) - 'LINEMOD + KNN-OCR' " << endl;
 	cout << "Author: Sungho Moon, Haegin Han                  " << endl;
@@ -14,18 +13,6 @@ void PrintUsage() {
 	cout << "  ./CST -r  [record] : Recording without tracking" << endl;
 	cout << "  ./CST -R  [record] : Tracking with record file " << endl;
 
-=======
-	cout << "================================================" << endl;
-	cout << "C-arm Source Tracker (CST) - 'LINEMOD + KNN-OCR'" << endl;
-	cout << "Author: Sungho Moon, Haegin Han                 " << endl;
-	cout << "================================================" << endl;
-//	cout << "  ./CST                  -> no tracking (use default recording name)" << endl;
-//	cout << "  ./CST -r [name]        -> no tracking (use user set recording name)" << endl;
-//	cout << "  ./CST -cam             -> source tracking (use Azure Kinect)" << endl;
-//	cout << "  ./CST -rec [name]      -> source tracking (use recording file)" << endl;
-//	cout << "  ./CST -cam -ocr        -> source tracking + specifications (use Azure Kinect)" << endl;
-//	cout << "  ./CST -rec [name] -ocr -> source tracking + specifications (use recording file)" << endl << endl;
->>>>>>> 1fb786f33bfe1855f8970e73721e84c14fa98ceb
 }
 
 int main(int argc, char** argv)
@@ -46,7 +33,6 @@ int main(int argc, char** argv)
 	string recordFileName("./record/record");
 	string printFileName;
 	LabelData label;
-<<<<<<< HEAD
 	Timer init_timer, match_timer;
 
 	for (int i=1; i<argc; i++) {
@@ -72,24 +58,6 @@ int main(int argc, char** argv)
 		printFileName = outputFileName;
 		cout << "Default tracking mode" << endl;
 	}
-=======
-	Timer match_timer, ocr_timer;
-
-//	if (argc == 1) {
-//		tracking = true;
-//	}
-//	else if (string(argv[1])=="-r"   )  { tracking = false; recordFileName = string(argv[2]); }
-//	else if (string(argv[1])=="-cam" )  {
-//		if (argc == 3 && string(argv[2])=="-ocr") { knnocr = true; tracking = false; }
-//	}
-//	else if (string(argv[1])=="-rec" )  {
-//		recTracking = true; camTracking = false;
-//		if (argc == 3) recordFileName = string(argv[2]);
-//		if (argc == 4 && string(argv[3])=="-ocr") {
-//			recordFileName = string(argv[2]); knnocr = true;
-//		}
-//	}
->>>>>>> 1fb786f33bfe1855f8970e73721e84c14fa98ceb
 
 	// Various settings and flags
 	int num_classes = 0;
@@ -98,10 +66,7 @@ int main(int argc, char** argv)
 	bool show_timings = false;
 	bool show_aiming = false;
 
-<<<<<<< HEAD
 	init_timer.start();
-=======
->>>>>>> 1fb786f33bfe1855f8970e73721e84c14fa98ceb
 	// Initialize Azure Kinect
 	cout << "    Initialize Azure Kinect" << flush;
 	vector<uint32_t> device_indices{ 0 };
@@ -154,14 +119,8 @@ int main(int argc, char** argv)
 	}
 	int num_modalities = (int)detector->getModalities().size();
 
-<<<<<<< HEAD
 	// Initialize OCR
 
-=======
-
-	// Initialize OCR
-	cout << "    Initialize Screen OCR" << endl;
->>>>>>> 1fb786f33bfe1855f8970e73721e84c14fa98ceb
 	int box[4] = {0,100,1200,400};
 	ScreenShot screen(box[0],box[1],box[2],box[3]);
 	cv::Mat imgNone = cv::Mat::zeros(box[3],box[2],CV_8UC3);
@@ -178,17 +137,12 @@ int main(int argc, char** argv)
 	proc.DebugOCR();
 	KNearestOcr ocr(config);
 	if (!ocr.loadTrainingData()) { cout << "      Failed to load OCR training data" << endl; return 1; }
-<<<<<<< HEAD
 	cout << "      OCR training data loaded." << endl;
 
 
 	init_timer.stop();
 	cout << "  >> Initialization Time(s): " << init_timer.time() << endl << endl;
 
-=======
-	cout << "      OCR training data loaded.\n";
-	cv::Mat imgNone = cv::Mat::zeros(box[3],box[2],CV_8UC3);
->>>>>>> 1fb786f33bfe1855f8970e73721e84c14fa98ceb
 
 	// Main Loop
 	int frameNo(0);
@@ -273,25 +227,18 @@ int main(int argc, char** argv)
 
 		bool fullprint(false);
 		if (powerOn) {
-<<<<<<< HEAD
 			Timer onframe_time;
 			onframe_time.start();
-=======
->>>>>>> 1fb786f33bfe1855f8970e73721e84c14fa98ceb
 			string voltage = ocr.recognize(proc.GetOutputkV());
 			string current = ocr.recognize(proc.GetOutputmA());
 			string dapRate = ocr.recognize(proc.GetOutputDAP());
-			cout << voltage << " " << current << " " << dapRate << " " << endl;
 
 			if (tracking) {
 				// Perform matching
 				vector<cv::linemod::Match> matches;
 				vector<cv::String> class_ids;
 				vector<cv::Mat> quantized_images;
-<<<<<<< HEAD
 
-=======
->>>>>>> 1fb786f33bfe1855f8970e73721e84c14fa98ceb
 
 				match_timer.start();
 				detector->match(sources, (float)matching_threshold, matches, class_ids, quantized_images);
@@ -341,7 +288,6 @@ int main(int argc, char** argv)
 				cv::imshow("normals", quantized_images[1]);
 				tracking = false;
 			} // tracking
-<<<<<<< HEAD
 			if(!fullprint && rec && recording) {
 				onframe_time.stop();
 				Print_CST_Result2(printFileName,frameNo,voltage,current,dapRate,onframe_time);
@@ -357,13 +303,7 @@ int main(int argc, char** argv)
 			else     tracking = true;
 		}
 		cv::imshow("color", display);
-=======
-			Print_CST_Result2(frameNo,voltage,current,dapRate);
-		} else tracking = true; // powerOff
 
->>>>>>> 1fb786f33bfe1855f8970e73721e84c14fa98ceb
-
-		cv::imshow("color", display);
 
 
 		char key = (char)cv::waitKey(1);
