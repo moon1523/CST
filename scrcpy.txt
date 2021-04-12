@@ -1,0 +1,14 @@
+# link same network (wi-fi, mobile hotspot)
+# connect usb phone and labtop
+adb devices
+adb shell ifconfig     // check the ip
+adb tcpip5555
+
+# disconnect usb
+adb connect 192.168.43.147 //
+adb connect 192.168.0.202
+scrcpy
+scrcpy --record file.mp4 (or file.mkv)
+
+
+
