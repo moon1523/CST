@@ -2,13 +2,63 @@
 # connect usb phone and labtop
 adb devices
 adb shell ifconfig     // check the ip
-adb tcpip5555
+adb tcpip 5555
 
 # disconnect usb
 adb connect 192.168.43.147 //
 adb connect 192.168.0.202
+adb connect 192.168.67.83
 scrcpy
 scrcpy --record file.mp4 (or file.mkv)
 
 
+scrcpy --record angle.mp4          -> 0_angle
+./CST -r angle_angulation          -> 0_angle/1_angulation
+./CST -r angle_rotation            -> 0_angle/2_rotation
 
+scrcpy --record ang_real-time.mp4   -> 1_angulation
+./CST -r ang_real-time             -> 1_angulation/0_real-time
+
+scrcpy --record angulation.mp4     -> 1_angulation
+./CST -r ang_PA                    -> 1_angulation/0_PA
+./CST -r ang_LAO30                 -> 1_angulation/1_LAO30
+./CST -r ang_LAO60                 -> 1_angulation/2_LAO60
+./CST -r ang_RAO30                 -> 1_angulation/3_RAO30
+./CST -r ang_RAO60                 -> 1_angulation/4_RAO60
+
+scrcpy --record rotation.mp4       -> 2_rotation
+./CST -r rot_CRA30                 -> 2_rotation/1_CRA30
+./CST -r rot_CRA60                 -> 2_rotation/2_CRA60
+./CST -r rot_CAU30                 -> 2_rotation/3_CAU30
+./CST -r rot_CAU60                 -> 2_rotation/4_CAU60
+
+scrcpy --record combination.mp4    -> 3_combination
+./CST -r com_LAO,CRA30             -> 3_combination/1_LAO,CRA30
+./CST -r com_RAO,CRA30             -> 3_combination/2_RAO,CRA30
+./CST -r com_LAO,CAU30             -> 3_combination/3_LAO,CAU30
+./CST -r com_RAO,CAU30             -> 3_combination/4_RAO,CAU30
+
+
+
+
+
+
+
+
+
+scrcpy --record ang_LAO30.mp4
+scrcpy --record ang_LAO60.mp4
+scrcpy --record ang_RAO30.mp4
+scrcpy --record ang_RAO30.mp4
+
+scrcpy --record ang_CRA30.mp4
+scrcpy --record ang_CRA60.mp4
+scrcpy --record ang_CAU30.mp4
+scrcpy --record ang_CAU60.mp4
+
+scrcpy --record ang_LAO,CRA30.mp4
+scrcpy --record ang_RAO,CRA30.mp4
+scrcpy --record ang_LAO,CAU30.mp4
+scrcpy --record ang_RAO,CAU30.mp4
+
+./CST -r angle
