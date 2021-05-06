@@ -149,6 +149,8 @@ int main(int argc, char** argv)
 	cv::Mat color, depth;
 	cv::FileStorage fs_d, fs_c;
 
+	double isocenter[3] = {-4.09685, -19.691, 2363};
+
 	cout << "Main Loop Start" << endl; help();
 	while(1) {
 		cv::Mat img; screen(img);
@@ -273,7 +275,7 @@ int main(int argc, char** argv)
 					drawResponse(templates, num_modalities, display, cv::Point(m.x, m.y), detector->getT(0), depthOrigin);
 					if(fullprint) {
 						onframe_time.stop();
-						Print_CST_Result(printFileName,label, m, xy_table, depth, frameNo, voltage, current, dapRate, onframe_time);
+						Print_CST_Result(printFileName,label, m, xy_table, depth, frameNo, voltage, current, dapRate, onframe_time, isocenter);
 					}
 
 				}
@@ -303,7 +305,6 @@ int main(int argc, char** argv)
 			else     tracking = true;
 		}
 		cv::imshow("color", display);
-
 
 
 		char key = (char)cv::waitKey(1);

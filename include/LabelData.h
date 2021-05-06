@@ -63,7 +63,6 @@ private:
     double maxDist, minDist, depthFactor;
     map<pair<int, int>, pair<double*, double>> data;
     map<pair<int, int>, pair<int,int>> posData;
-    //map<pair<int, int>, pair<vtkMatrix4x4*, double>> data;
     map<int, double*> viewpoints;
 };
 

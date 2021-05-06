@@ -142,7 +142,7 @@ void drawResponse(const std::vector<cv::linemod::Template>& templates,
 void Print_CST_Result(string fileName,
 					  LabelData label, cv::linemod::Match m,
 					  vector<pair<float,float>> xy_table, cv::Mat depth, int frameNo,
-					  string voltage, string current, string dapRate, Timer frame_time)
+					  string voltage, string current, string dapRate, Timer frame_time, double isocenter[3])
 {
 	double origin[3] = {0,0,0}; double source[3] = {0,0,-810};
 	double origin_rot[3], source_rot[3];
@@ -150,7 +150,7 @@ void Print_CST_Result(string fileName,
 	ofstream ofs(fileName + ".out",ios::app);
 
 	transform->Identity();
-	transform->SetMatrix(label.GetAffineTransformMatrix(stoi(m.class_id), m.template_id));
+	transform->SetMatrix(label.GetAffineTransformMatrix(stoi(m.class_id), m.template_id, isocenter));
 	transform->TransformPoint(origin, origin_rot);
 	transform->TransformPoint(source, source_rot);
 
