@@ -277,4 +277,22 @@ ROIBox* setROIBOX2(int box[4]) {
 	return roi;
 }
 
+map<int, tuple<double,double,double,double>> Read_Recording_OCR(string fileName)
+{
+	cout << "    Read recording ocr file..." << endl;
+	string ocrFile = fileName.substr(0,fileName.size()-8) + ".ocr";
+	ifstream ifs(ocrFile);
+	if(!ifs.is_open()) { cerr << ocrFile  << " was not opened" << endl; exit(1); }
+	map<int, tuple<double,double,double,double>> onFrameMap;
+	string dump;
+	getline(ifs,dump);
+	while(getline(ifs,dump)) {
+		int frame; double frameT, tVolt, tCurr, dapRate;
+		stringstream ss(dump);
+		ss >> frame >> frameT >> tVolt >> tCurr >> dapRate;
+		onFrameMap[frame] = make_tuple(frameT,tVolt,tCurr,dapRate);
+	}
+	return onFrameMap;
+}
+
 #endif /* INCLUDE_OCR_FUNC_H_ */

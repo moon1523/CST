@@ -29,6 +29,7 @@ private:
 
 class ScreenShot {
 public:
+	ScreenShot() {}
 	ScreenShot(int _x, int _y, int _width, int _height):
 		x(_x), y(_y), width(_width), height(_height) {
 		display = XOpenDisplay(nullptr);

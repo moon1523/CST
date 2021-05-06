@@ -3,16 +3,14 @@
 #include "LabelData.h"
 #include "TrackingFunc.h"
 #include "OCR_Func.h"
+#include "VTKFunc.h"
 
 void PrintUsage() {
 	cout << "=================================================" << endl;
 	cout << "C-arm Source Tracker (CST) - 'LINEMOD + KNN-OCR' " << endl;
+	cout << "# Recording Tracking Version                     " << endl;
 	cout << "Author: Sungho Moon, Haegin Han                  " << endl;
 	cout << "=================================================" << endl;
-	cout << "  ./CST -o  [output] : Tracking                  " << endl;
-	cout << "  ./CST -r  [record] : Recording without tracking" << endl;
-	cout << "  ./CST -R  [record] : Tracking with record file " << endl;
-
 }
 
 int main(int argc, char** argv)
@@ -24,6 +22,8 @@ int main(int argc, char** argv)
 
 	bool fromRecording(false);
 	bool endXML(false);
+	bool cutXML(false);
+	bool print(false);
 
 	int width(1280), height(720);
 	string dataPath("./data/");
@@ -34,6 +34,8 @@ int main(int argc, char** argv)
 	string printFileName;
 	LabelData label;
 	Timer init_timer, match_timer;
+	string printPath;
+
 
 	for (int i=1; i<argc; i++) {
 		if (string(argv[i]) == "-o") {
@@ -49,61 +51,62 @@ int main(int argc, char** argv)
 		}
 		else if (string(argv[i]) == "-R") {
 			fromRecording = true;
-			printFileName = outputFileName;
-			recordFileName = recordPath + argv[i+1];
+			recordFileName = argv[i+1];
+			printFileName = recordFileName;
+			if (argv[i+2]) printPath = string(argv[i+2]);
 			i++;
+			label = LabelData(dataPath + "labels.txt");
 		}
 	}
 	if (argc == 1) {
 		printFileName = outputFileName;
 		cout << "Default tracking mode" << endl;
 	}
+	init_timer.start();
+	//read ply file
+	viz::Viz3d myWindow("PLY viewer");
+	WPoly poly;
+	if(tracking){
+		poly.Initialize(dataPath+"carm.ply",label);
+		myWindow.setWindowSize(Size(1280, 720));
+		myWindow.showWidget("Coordinate", viz::WCoordinateSystem(500.));
+		myWindow.showWidget("model PLY", poly);
+		Vec3f cam_pos(0,0,-3000), cam_focal_point(0,0,1), cam_y_dir(0,-1.,0);
+		Affine3f cam_pose = viz::makeCameraPose(cam_pos, cam_focal_point, cam_y_dir);
+		myWindow.setViewerPose(cam_pose);
+		myWindow.spinOnce(1,true);
+	}
 
 	// Various settings and flags
 	int num_classes = 0;
 	int matching_threshold = 70;
-	bool show_match_result = true;
+	bool show_match_result = false;
 	bool show_timings = false;
 	bool show_aiming = false;
 
-	init_timer.start();
-	// Initialize Azure Kinect
-	cout << "    Initialize Azure Kinect" << flush;
-	vector<uint32_t> device_indices{ 0 };
-	int32_t color_exposure_usec = 8000;  // somewhat reasonable default exposure time
-	int32_t powerline_freq = 2;          // default to a 60 Hz powerline
-	MultiDeviceCapturer capturer;
-	k4a_device_configuration_t main_config, secondary_config;
-	k4a::transformation main_depth_to_main_color;
-
-	if(!fromRecording){
-		capturer = MultiDeviceCapturer(device_indices, color_exposure_usec, powerline_freq);
-		// Create configurations for devices
-		main_config = get_master_config();
-		main_config.depth_mode = K4A_DEPTH_MODE_NFOV_UNBINNED;
-		main_config.camera_fps = K4A_FRAMES_PER_SECOND_15;
-		main_config.color_resolution = K4A_COLOR_RESOLUTION_720P;
-		main_config.wired_sync_mode = K4A_WIRED_SYNC_MODE_STANDALONE;// no need to have a master cable if it's standalone
-		secondary_config = get_subordinate_config(); // not used - currently standalone mode
-		// Construct all the things that we'll need whether or not we are running with 1 or 2 cameras
-		k4a::calibration main_calibration = capturer.get_master_device().get_calibration(main_config.depth_mode,main_config.color_resolution);
-		// Set up a transformation. DO THIS OUTSIDE OF YOUR MAIN LOOP! Constructing transformations involves time-intensive
-		// hardware setup and should not change once you have a rigid setup, so only call it once or it will run very
-		// slowly.
-		main_depth_to_main_color = k4a::transformation(main_calibration);
-		capturer.start_devices(main_config, secondary_config);
-	}
-	cout << "...done" << endl;
-
 	pair<vector<cv::Mat>,vector<cv::Mat>> recVec;
+	map<int, tuple<double,double,double,double>> onFrameMap;
+	map<int, tuple<double,double,double,double>>::iterator itr;
+
+	int initFrame = stoi(recordFileName.substr(recordFileName.size()-7,recordFileName.size()-4));
+	int lastFrame = stoi(recordFileName.substr(recordFileName.size()-3,recordFileName.size()));
+
+	int initOnFrame(0), lastOnFrame(0), onFrameNum(0);
 	vector<cv::Mat> colorVec, depthVec;
 	if(fromRecording) {
-		recVec = Read_OpenCV_XML(recordFileName, 95); // set the recording index
+		onFrameMap = Read_Recording_OCR(printFileName);
+		initOnFrame = onFrameMap.begin()->first;
+		lastOnFrame = onFrameMap.rbegin()->first;
+		if(cutXML) initOnFrame = initFrame;
+
+		recVec = Read_OpenCV_XML(recordFileName, initFrame);
 		colorVec = recVec.first;
 		depthVec = recVec.second;
 	}
 
-	auto xy_table = Read_XY_Table(dataPath, width, height);
+	int recSize = recVec.first.size();
+
+	vector<pair<float,float>> xy_table = Read_XY_Table(dataPath, width, height);
 
 	// Initialize LINEMOD data structures
 	cv::Ptr<cv::linemod::Detector> detector;
@@ -113,79 +116,41 @@ int main(int argc, char** argv)
 		num_classes = detector->numClasses();
 		printf("Loaded %d classes and %d templates\n",
 				num_classes, detector->numTemplates());
-//		label = LabelData(dataPath + "labels.txt");
 	} else {
 		detector = cv::linemod::getDefaultLINEMOD();
 	}
 	int num_modalities = (int)detector->getModalities().size();
-
-	// Initialize OCR
-
-	int box[4] = {0,100,1200,400};
-	ScreenShot screen(box[0],box[1],box[2],box[3]);
-	cv::Mat imgNone = cv::Mat::zeros(box[3],box[2],CV_8UC3);
-
-	cout << "    Initialize Screen OCR" << endl;
-	ROIBox* roi = setROIBOX2(box);
-
-	Config config;
-	config.loadConfig();
-	ImageProcessor proc(config);
-	proc.DebugWindow();
-	proc.DebugPower();
-	proc.DebugDigits();
-	proc.DebugOCR();
-	KNearestOcr ocr(config);
-	if (!ocr.loadTrainingData()) { cout << "      Failed to load OCR training data" << endl; return 1; }
-	cout << "      OCR training data loaded." << endl;
-
 
 	init_timer.stop();
 	cout << "  >> Initialization Time(s): " << init_timer.time() << endl << endl;
 
 
 	// Main Loop
-	int frameNo(0);
 	cv::Mat color, depth;
 	cv::FileStorage fs_d, fs_c;
+	if(print)
+    printPLY = true;
 
-	cout << "Main Loop Start" << endl; help();
-	while(1) {
-		cv::Mat img; screen(img);
-		cv::Mat imgCopy(imgNone);
+    double source[3] = {0,0,-810};
+    double origin[3] = {0,0,0};
+    double isocenter[3] = {-4.09685,-19.691,2363};
+    vtkSmartPointer<vtkTransform> transform  = vtkSmartPointer<vtkTransform>::New();
 
-		// Read ROI box screen
-		for (int k=0; k<blackBox.size(); k++) {
-			for (int i=blackBox[k].x; i< blackBox[k].x + blackBox[k].width; i++) {
-				for (int j=blackBox[k].y; j<blackBox[k].y + blackBox[k].height; j++) {
-					imgCopy.at<cv::Vec3b>(j,i) = img.at<cv::Vec3b>(j,i);
-				}
-			}
-		}
-		proc.SetInput(imgCopy);
-		proc.Process(roi);
-		bool powerOn = proc.GetPowerOn();
+    cout << "Main Loop Start" << endl; help();
+    cout << "initFrame: " << initFrame << endl;
+	cout << "lastFrame: " << lastFrame << endl;
+    cout << "initOnFrame: " << initOnFrame << endl;
+    cout << "lastOnFrame: " << lastOnFrame << endl;
+	for (int i=initFrame; i<=lastFrame; i++) {
+		bool power(false);
+		Timer onframe_time;
+		onframe_time.start();
 
-//		if(!fromRecording) {
-			// color/depth images caputured by Azure Kinect DK
-			// Be careful to use it
-		    //
-			vector<k4a::capture> captures;
-			captures = capturer.get_synchronized_captures(secondary_config, true);
-			k4a::image main_color_image = captures[0].get_color_image();
-			k4a::image main_depth_image = captures[0].get_depth_image();
-
-			k4a::image main_depth_in_main_color = create_depth_image_like(main_color_image);
-			main_depth_to_main_color.depth_image_to_color_camera(main_depth_image, &main_depth_in_main_color);
-			depth = depth_to_opencv(main_depth_in_main_color);
-			color = color_to_opencv(main_color_image);
-//		}
 		// color/depth images from recording file
-//		else {
-//			if (frameNo == depthVec.size()) break;
-//			depth = depthVec[frameNo];
-//			color = colorVec[frameNo];
-//		}
+		if(fromRecording) {
+			depth = depthVec[i-initFrame];
+			color = colorVec[i-initFrame];
+		}
 
 		vector<cv::Mat> sources;
 		cv::Mat depthOrigin = depth.clone();
@@ -195,115 +160,92 @@ int main(int argc, char** argv)
 
 		cv::Mat display = color.clone();
 
-		if(recording) {
-			if(!fs_d.isOpened()) {
-				fs_c.open(recordFileName+"_c.xml", cv::FileStorage::WRITE);
-				fs_d.open(recordFileName+"_d.xml", cv::FileStorage::WRITE);
-			}
-			fs_d << "frame" + to_string(frameNo) << depth;
-			fs_c << "frame" + to_string(frameNo) << color;
-
-			cout << "Recorded frame " << frameNo << endl;
-		}
-		if (endXML) {
-			fs_d.release();
-			fs_c.release();
-		}
-
-		if (show_aiming) {
-			int aimSize(10);
-			line(display, cv::Point(640,360-aimSize), cv::Point(640,360+aimSize), cv::Scalar(255,255,0), 2, 4, 0);
-			line(display, cv::Point(640-aimSize,360), cv::Point(640+aimSize,360), cv::Scalar(255,255,0), 2, 4, 0);
-
-			int aimPP(0);
-			for (int y=0;y<aimSize*2;y++) {
-				for (int x=0;x<aimSize*2;x++) {
-					aimPP += depth.at<ushort>(360-aimSize+y,640-aimSize+x);
-				}
-			} aimPP = aimPP / (4*aimSize*aimSize);
-
-			cout << "\rcenter depth[area|point]: " << aimPP << " | " << depth.at<ushort>(360,640) << "  " << flush;
-		}
-
-		bool fullprint(false);
-		if (powerOn) {
-			Timer onframe_time;
-			onframe_time.start();
-			string voltage = ocr.recognize(proc.GetOutputkV());
-			string current = ocr.recognize(proc.GetOutputmA());
-			string dapRate = ocr.recognize(proc.GetOutputDAP());
-
-			if (tracking) {
-				// Perform matching
-				vector<cv::linemod::Match> matches;
-				vector<cv::String> class_ids;
-				vector<cv::Mat> quantized_images;
+		vector<cv::Mat> quantized_images;
+		if (tracking) {
+			// Perform matching
+			vector<cv::linemod::Match> matches;
+			vector<cv::String> class_ids;
 
 
-				match_timer.start();
-				detector->match(sources, (float)matching_threshold, matches, class_ids, quantized_images);
-				match_timer.stop();
+			match_timer.start();
+			detector->match(sources, (float)matching_threshold, matches, class_ids, quantized_images);
+			match_timer.stop();
 
-				int classes_visited = 0;
-				set<string> visited;
+			int classes_visited = 0;
+			set<string> visited;
 
-				int maxID; double maxSim(-1); int match_count(0);
-				for (int i=0; (i < (int)matches.size()) && (classes_visited < num_classes); ++i) {
-					cv::linemod::Match m = matches[i];
-					if (visited.insert(m.class_id).second) {
-						++classes_visited;
+			int maxID; double maxSim(-1); int match_count(0);
+			for (int i=0; (i < (int)matches.size()) && (classes_visited < num_classes); ++i) {
+				cv::linemod::Match m = matches[i];
+				if (visited.insert(m.class_id).second) {
+					++classes_visited;
 
-						if (show_match_result) {
-							printf("Similarity: %5.1f%%; x: %3d; y: %3d; class: %s; template: %3d\n",
-								   m.similarity, m.x, m.y, m.class_id.c_str(), m.template_id);
-								   match_count++;
-						}
-						if (m.similarity > maxSim) {
-							maxSim = m.similarity;
-							maxID = i;
-						}
+					if (show_match_result) {
+						printf("Similarity: %5.1f%%; x: %3d; y: %3d; class: %s; template: %3d\n",
+							   m.similarity, m.x, m.y, m.class_id.c_str(), m.template_id);
+							   match_count++;
+					}
+					if (m.similarity > maxSim) {
+						maxSim = m.similarity;
+						maxID = i;
 					}
 				}
-
-				if (maxSim > 0) {
-					fullprint = true;
-					cv::linemod::Match m = matches[maxID];
-					// Draw matching template
-					const std::vector<cv::linemod::Template>& templates = detector->getTemplates(m.class_id, m.template_id);
-					drawResponse(templates, num_modalities, display, cv::Point(m.x, m.y), detector->getT(0), depthOrigin);
-					if(fullprint) {
-						onframe_time.stop();
-						Print_CST_Result(printFileName,label, m, xy_table, depth, frameNo, voltage, current, dapRate, onframe_time);
-					}
-
-				}
-
-				if (show_match_result && matches.empty())
-					printf("No matches found...\n");
-
-				cout << "Match count: " << match_count << endl;
-				printf("Matching Time: %.2fs\n", match_timer.time());
-				printf("------------------------------------------------------------\n");
-
-				cv::imshow("normals", quantized_images[1]);
-				tracking = false;
-			} // tracking
-			if(!fullprint && rec && recording) {
-				onframe_time.stop();
-				Print_CST_Result2(printFileName,frameNo,voltage,current,dapRate,onframe_time);
-			}
-			if(!fullprint && !rec) {
-				onframe_time.stop();
-				Print_CST_Result2(printFileName,frameNo,voltage,current,dapRate,onframe_time);
 			}
 
-		}
-		else { // powerOff
-			if (rec) tracking = false;
-			else     tracking = true;
-		}
+			if (maxSim > 0) {
+				cout << "Frmae #" << i << endl;
+				cv::linemod::Match m = matches[maxID];
+				// Draw matching template
+				const std::vector<cv::linemod::Template>& templates = detector->getTemplates(m.class_id, m.template_id);
+				drawResponse(templates, num_modalities, display, cv::Point(m.x, m.y), detector->getT(0), depthOrigin);
+				onframe_time.stop();
+				string frameT  = to_string(get<0>(onFrameMap[i]));
+				string tVolt   = to_string(get<1>(onFrameMap[i]));
+				string tCurr   = to_string(get<2>(onFrameMap[i]));
+				string dapRate = to_string(get<3>(onFrameMap[i]));
+				if ( initOnFrame <= i && i<=lastOnFrame) power = true;
+				Print_CST_Result(printFileName,label, m, xy_table, depth, i, tVolt, tCurr, dapRate, frameT, power, isocenter);
+				printf("Similarity: %5.1f%%; x: %3d; y: %3d; class: %s; template: %3d\n",
+														   maxSim, m.x, m.y, m.class_id.c_str(), m.template_id);
+
+				int iC = m.x + label.GetPosition(stoi(m.class_id), m.template_id).first;
+				int jC = m.y + label.GetPosition(stoi(m.class_id), m.template_id).second;
+				double kC = label.GetDistance(stoi(m.class_id), m.template_id);
+
+				double posX = xy_table[depth.cols*jC + iC].first  * kC;
+				double posY = xy_table[depth.cols*jC + iC].second * kC;
+				double posZ = kC;
+
+				double source_rot[3], origin_rot[3];
+
+				transform->Identity();
+				transform->SetMatrix(label.GetAffineTransformMatrix(stoi(m.class_id), m.template_id, isocenter));
+				transform->TransformPoint(origin, origin_rot);
+				transform->TransformPoint(source, source_rot);
+
+//				origin_rot[0] += posX; origin_rot[1] += posY;
+//				source_rot[0] += posX; source_rot[1] += posY;
+
+
+				poly.Transform(printPath, atoi(m.class_id.c_str()), m.template_id, origin_rot, i);
+				myWindow.spinOnce(1, true);
+			}
+
+			if (show_match_result && matches.empty())
+				printf("No matches found...\n");
+
+			cout << "Match count: " << match_count << endl;
+			printf("Matching Time: %.2fs\n", match_timer.time());
+			printf("------------------------------------------------------------\n");
+
+		} // tracking
 		cv::imshow("color", display);
+		cv::imshow("normals", quantized_images[1]);
 
+		if(print) {
+			cv::imwrite(printPath + "color/color" + to_string(i) +".png", display);
+			cv::imwrite(printPath + "normal/normal" + to_string(i) +".png", quantized_images[1]);
+		}
 
 
 		char key = (char)cv::waitKey(1);
@@ -354,12 +296,7 @@ int main(int argc, char** argv)
 			default:
 				;
 		} // switch
-
-
-		frameNo++;
 	} // Main Loop
-	delete roi;
-
 
 	return 0;
 }

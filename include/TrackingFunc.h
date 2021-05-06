@@ -117,11 +117,11 @@ void drawResponse(const std::vector<cv::linemod::Template>& templates,
                   int num_modalities, cv::Mat& dst, cv::Point offset, int T,
                   cv::Mat depth)
 {
-    static const cv::Scalar COLORS[5] = { CV_RGB(0, 0, 255),
-								   CV_RGB(0, 255, 0),
-								   CV_RGB(255, 255, 0),
-								   CV_RGB(255, 140, 0),
-								   CV_RGB(255, 0, 0) };
+    static const cv::Scalar COLORS[5] = { CV_RGB(  0,   0, 255),
+								          CV_RGB(  0, 255,   0),
+								          CV_RGB(255, 255,   0),
+								          CV_RGB(255, 140,   0),
+								          CV_RGB(255,   0,   0) };
     for (int m = 0; m < num_modalities; ++m)
     {
         // NOTE: Original demo recalculated max response for each feature in the TxT
@@ -133,7 +133,7 @@ void drawResponse(const std::vector<cv::linemod::Template>& templates,
         {
             cv::linemod::Feature f = templates[m].features[i];
             cv::Point pt(f.x + offset.x, f.y + offset.y);
-            cv::circle(dst, pt, T / 2, color);
+//            cv::circle(dst, pt, T / 2, color);
         }
     }
 }
@@ -142,15 +142,15 @@ void drawResponse(const std::vector<cv::linemod::Template>& templates,
 void Print_CST_Result(string fileName,
 					  LabelData label, cv::linemod::Match m,
 					  vector<pair<float,float>> xy_table, cv::Mat depth, int frameNo,
-					  string voltage, string current, string dapRate, Timer frame_time)
+					  string voltage, string current, string dapRate, string frameT, bool power, double isocenter[3])
 {
 	double origin[3] = {0,0,0}; double source[3] = {0,0,-810};
 	double origin_rot[3], source_rot[3];
 	vtkSmartPointer<vtkTransform> transform = vtkSmartPointer<vtkTransform>::New();
-	ofstream ofs(fileName + ".out",ios::app);
+	ofstream ofs(fileName + ".trk",ios::app);
 
 	transform->Identity();
-	transform->SetMatrix(label.GetAffineTransformMatrix(stoi(m.class_id), m.template_id));
+	transform->SetMatrix(label.GetAffineTransformMatrix(stoi(m.class_id), m.template_id, isocenter));
 	transform->TransformPoint(origin, origin_rot);
 	transform->TransformPoint(source, source_rot);
 
@@ -162,26 +162,25 @@ void Print_CST_Result(string fileName,
 	double posY = xy_table[depth.cols*jC + iC].second * kC;
 	double posZ = kC;
 
-	origin_rot[0] += posX; origin_rot[1] += posY;
-	source_rot[0] += posX; source_rot[1] += posY;
+//	origin_rot[0] += posX; origin_rot[1] += posY;
+//	source_rot[0] += posX; source_rot[1] += posY;
 
     // Print Results
     ofs << "Frame " << frameNo << endl;
-    ofs << "Frame_Time: " << frame_time.time() << endl;
     ofs << "Index " << m.class_id << " " << m.template_id << " " << endl;
     ofs << "AffineT" << endl;
     ofs << label.GetAffineTransformMatrix(stoi(m.class_id), m.template_id)[0] << " "
         << label.GetAffineTransformMatrix(stoi(m.class_id), m.template_id)[1] << " "
         << label.GetAffineTransformMatrix(stoi(m.class_id), m.template_id)[2] << " "
-        << posX << endl;
+        << isocenter[0] << endl;
     ofs << label.GetAffineTransformMatrix(stoi(m.class_id), m.template_id)[4] << " "
         << label.GetAffineTransformMatrix(stoi(m.class_id), m.template_id)[5] << " "
         << label.GetAffineTransformMatrix(stoi(m.class_id), m.template_id)[6] << " "
-        << posY << endl;
+        << isocenter[1] << endl;
     ofs << label.GetAffineTransformMatrix(stoi(m.class_id), m.template_id)[8] << " "
         << label.GetAffineTransformMatrix(stoi(m.class_id), m.template_id)[9] << " "
         << label.GetAffineTransformMatrix(stoi(m.class_id), m.template_id)[10] << " "
-        << label.GetAffineTransformMatrix(stoi(m.class_id), m.template_id)[11] << endl;
+        << isocenter[2] << endl;
     ofs << label.GetAffineTransformMatrix(stoi(m.class_id), m.template_id)[12] << " "
         << label.GetAffineTransformMatrix(stoi(m.class_id), m.template_id)[13] << " "
         << label.GetAffineTransformMatrix(stoi(m.class_id), m.template_id)[14] << " "
@@ -189,6 +188,9 @@ void Print_CST_Result(string fileName,
 
     ofs << "Isocenter " << origin_rot[0] << " " << origin_rot[1] << " " << origin_rot[2] << endl;
     ofs << "Source    " << source_rot[0] << " " << source_rot[1] << " " << source_rot[2] << endl;
+
+    ofs << "Power " << power << endl;
+    ofs << "Frame_Time " << frameT << endl;
 
     // OCR Results
     ofs << "T_Voltage " << voltage << endl;
@@ -206,7 +208,6 @@ void Print_CST_Result2(string fileName, int frameNo, string voltage, string curr
     ofs << "T_Current " << current << endl;
     ofs << "DAP_rate  " << dapRate << endl << endl;
 }
-
 
 
 #endif /* INCLUDE_TRACKINGFUNC_H_ */

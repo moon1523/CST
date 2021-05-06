@@ -30,6 +30,7 @@ public:
 
 class ImageProcessor {
 public:
+	ImageProcessor() {}
 	ImageProcessor(const Config& config);
 	virtual ~ImageProcessor();
 

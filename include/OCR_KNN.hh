@@ -10,6 +10,7 @@
 
 class KNearestOcr {
 public:
+	KNearestOcr() {}
 	KNearestOcr(const Config& config);
 	virtual ~KNearestOcr();
 
